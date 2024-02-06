@@ -1,32 +1,105 @@
 package webhook
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"strconv"
+
+	"github.com/aiteung/atapi"
 	"github.com/aiteung/atmessage"
 	"github.com/aiteung/module/model"
-	"github.com/gofiber/fiber/v2"
-	"github.com/whatsauth/ws"
+	"github.com/whatsauth/wa"
 )
 
-func PostMessage(c *fiber.Ctx) error {
-	var h Header
-	err := c.ReqHeaderParser(&h)
-	if err != nil {
-		return err
-	}
+func PostBalasan(w http.ResponseWriter, r *http.Request) {
+	var msg model.IteungMessage
 	var resp atmessage.Response
-	if h.Secret == WebhookSecret {
-		var msg model.IteungMessage
-		err = c.BodyParser(&msg)
-		if err != nil {
-			return err
-		}
-		if ws.IsLoginRequest(msg, WAKeyword) { //untuk whatsauth request login
-			resp = HandlerQRLogin(msg, WAKeyword)
-		} else { //untuk membalas pesan masuk
-			resp = HandlerIncomingMessage(msg)
+	json.NewDecoder(r.Body).Decode(&msg)
+	link := "https://berkatauto.github.io/swagger"
+	if r.Header.Get("Secret") == os.Getenv("SECRET") {
+		if msg.Message == "loc" || msg.Message == "Loc" || msg.Message == "lokasi" || msg.LiveLoc {
+			location, err := ReverseGeocode(msg.Latitude, msg.Longitude)
+			if err != nil {
+				// Handle the error (e.g., log it) and set a default location name
+				location = "Unknown Location"
+			}
+
+			reply := fmt.Sprintf("Hai aku tebak kamu pasti lagi di %s \nKoordinatenya : %s - %s\nCara Penggunaan WhatsAuth Ada di link dibawah ini"+
+				"yaa kak %s\n", location,
+				strconv.Itoa(int(msg.Longitude)), strconv.Itoa(int(msg.Latitude)), link)
+			dt := &wa.TextMessage{
+				To:       msg.Phone_number,
+				IsGroup:  false,
+				Messages: reply,
+			}
+			resp, _ = atapi.PostStructWithToken[atmessage.Response]("Token", os.Getenv("TOKEN"), dt, "https://api.wa.my.id/api/send/message/text")
+		} else {
+			dt := &wa.TextMessage{
+				To:       msg.Phone_number,
+				IsGroup:  false,
+				Messages: "Hai " + msg.Alias_name + "\nIbrohim nya lagi gaadaa \naku chat bot salam kenall yaaaa \nCara penggunaan WhatsAuth ada di link berikut ini ya kak...\n" + link,
+			}
+			resp, _ = atapi.PostStructWithToken[atmessage.Response]("Token", os.Getenv("TOKEN"), dt, "https://api.wa.my.id/api/send/message/text")
 		}
 	} else {
 		resp.Response = "Secret Salah"
 	}
-	return c.JSON(resp)
+	fmt.Fprintf(w, resp.Response)
+}
+
+func ReverseGeocode(latitude, longitude float64) (string, error) {
+	// OSM Nominatim API endpoint
+	apiURL := fmt.Sprintf("https://nominatim.openstreetmap.org/reverse?format=json&lat=%f&lon=%f", latitude, longitude)
+
+	// Make a GET request to the API
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// Decode the response
+	var result map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return "", err
+	}
+
+	// Extract the place name from the response
+	displayName, ok := result["display_name"].(string)
+	if !ok {
+		return "", fmt.Errorf("unable to extract display_name from the API response")
+	}
+
+	return displayName, nil
+}
+
+func Liveloc(w http.ResponseWriter, r *http.Request) {
+	var msg model.IteungMessage
+	var resp atmessage.Response
+	json.NewDecoder(r.Body).Decode(&msg)
+
+	// Reverse geocode to get the place name
+	location, err := ReverseGeocode(msg.Latitude, msg.Longitude)
+	if err != nil {
+		// Handle the error (e.g., log it) and set a default location name
+		location = "Unknown Location"
+	}
+
+	reply := fmt.Sprintf("Hai aku tebak kamu pasti lagi di %s \nKoordinatenya : %s - %s\n", location,
+		strconv.Itoa(int(msg.Longitude)), strconv.Itoa(int(msg.Latitude)))
+
+	if r.Header.Get("Secret") == os.Getenv("SECRET") {
+		dt := &wa.TextMessage{
+			To:       msg.Phone_number,
+			IsGroup:  false,
+			Messages: reply,
+		}
+		resp, _ = atapi.PostStructWithToken[atmessage.Response]("Token", os.Getenv("TOKEN"), dt, "https://cloud.wa.my.id/api/send/message/text")
+	} else {
+		resp.Response = "Secret Salah"
+	}
+	fmt.Fprintf(w, resp.Response)
 }
