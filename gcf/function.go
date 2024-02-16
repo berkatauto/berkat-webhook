@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
-	"github.com/whatsauth/webhook"
+	webhook "github.com/berkatauto/berkat-webhook"
 )
 
 func init() {
