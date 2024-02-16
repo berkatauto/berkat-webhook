@@ -39,7 +39,7 @@ func PostBalasan(w http.ResponseWriter, r *http.Request) {
 			dt := &wa.TextMessage{
 				To:       msg.Phone_number,
 				IsGroup:  false,
-				Messages: "Hai " + msg.Alias_name + "\nIbrohim nya lagi gaadaa \naku chat bot salam kenall yaaaa \nCara penggunaan WhatsAuth ada di link berikut ini ya kak...\n" + link,
+				Messages: "Hai " + msg.Alias_name + "\nIni adalah pesan otomatis, terima kasih.\n Berikut adalah tutorial menggunakan Whatsauth : \n" + link,
 			}
 			resp, _ = atapi.PostStructWithToken[atmessage.Response]("Token", os.Getenv("TOKEN"), dt, "https://api.wa.my.id/api/send/message/text")
 		}

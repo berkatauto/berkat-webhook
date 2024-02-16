@@ -3,8 +3,8 @@ package gcf
 import (
 	"net/http"
 
-	"github.com/Befous/webhook"
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
+	"github.com/whatsauth/webhook"
 )
 
 func init() {
